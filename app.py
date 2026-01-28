@@ -8,7 +8,7 @@ from PyPDF2 import PdfReader
 
 # ================== CONFIG ==================
 st.set_page_config(page_title="THINKODE AI", page_icon="🧠")
-st.title("🧠 THINKODE AI")
+st.title("🧠 THINKODE AI - Developed by Nguyen Thanh Liem - THPT chuyen Ha Giang")
 st.caption("Think before Code – Huấn luyện tư duy lập trình cho học sinh")
 
 # ================== API KEY ==================
