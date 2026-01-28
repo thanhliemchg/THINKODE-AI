@@ -1,30 +1,24 @@
 import streamlit as st
 import google.generativeai as genai
-import os, csv
+from prompts import SYSTEM_PROMPT
+from guard import is_blocked, blocked_reply
+import csv, os
 from datetime import datetime
 from PyPDF2 import PdfReader
 
 # ================== CONFIG ==================
-st.set_page_config(
-    page_title="THINKODE AI",
-    page_icon="🧠",
-    layout="centered"
-)
-
+st.set_page_config(page_title="THINKODE AI", page_icon="🧠")
 st.title("🧠 THINKODE AI")
 st.caption("Think before Code – Huấn luyện tư duy lập trình cho học sinh")
 
 # ================== API KEY ==================
-API_KEY = os.getenv("GEMINI_API_KEY")
-if not API_KEY:
+GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GOOGLE_API_KEY:
     st.error("❌ Chưa cấu hình GEMINI_API_KEY trong Streamlit Secrets")
     st.stop()
 
-genai.configure(api_key=API_KEY)
-
-model = genai.GenerativeModel(
-    model_name="models/gemini-1.5-flash"
-)
+genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 # ================== LOG ==================
 LOG_FILE = "data/logs.csv"
@@ -35,19 +29,19 @@ if not os.path.exists(LOG_FILE):
 
 # ================== MODE ==================
 mode = st.selectbox(
-    "🧭 Chọn chế độ hỗ trợ",
-    (
+    "Chọn chế độ hỗ trợ:",
+    [
         "Phân tích đề bài",
         "Gợi ý hướng tiếp cận",
         "Kiểm tra tư duy",
         "Đánh giá độ phức tạp"
-    )
+    ]
 )
 
 # ================== PDF UPLOAD ==================
-st.markdown("📎 **Đính kèm đề bài (PDF, không bắt buộc)**")
+st.markdown("### 📎 Đính kèm đề bài (PDF, không bắt buộc)")
 pdf_file = st.file_uploader(
-    "Upload file PDF",
+    "Upload đề bài nếu có",
     type=["pdf"],
     label_visibility="collapsed"
 )
@@ -58,50 +52,45 @@ if pdf_file:
     for page in reader.pages:
         pdf_text += page.extract_text() + "\n"
 
-# ================== CHAT ==================
+# ================== SESSION ==================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
-user_input = st.chat_input("💬 Nhập câu hỏi lập trình của em...")
+# ================== INPUT ==================
+user_input = st.chat_input("Nhập câu hỏi lập trình của em...")
 
-# ================== ASK AI ==================
 def ask_ai(prompt):
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"❌ Lỗi hệ thống Gemini:\n\n{e}"
+    response = model.generate_content(prompt)
+    return response.text
 
-# ================== HANDLE INPUT ==================
+# ================== MAIN ==================
 if user_input:
     st.chat_message("user").write(user_input)
-
-    full_prompt = f"""
-Bạn là THINKODE AI – trợ lý huấn luyện tư duy lập trình cho học sinh.
-
-CHẾ ĐỘ: {mode}
-
-ĐỀ BÀI (nếu có PDF):
-{pdf_text if pdf_text else "Không có"}
-
-CÂU HỎI:
-{user_input}
-
-Yêu cầu:
-- Giải thích rõ ràng
-- KHÔNG đưa code hoàn chỉnh nếu không được yêu cầu
-- Tập trung tư duy, phân tích
-"""
 
     with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([datetime.now(), mode, user_input])
 
-    reply = ask_ai(full_prompt)
+    if is_blocked(user_input):
+        reply = blocked_reply()
+    else:
+        full_prompt = f"""
+{SYSTEM_PROMPT}
 
-    st.session_state.messages.append({"role": "user", "content": user_input})
+CHẾ ĐỘ: {mode}
+
+ĐỀ BÀI (nếu có PDF):
+{pdf_text}
+
+CÂU HỎI:
+{user_input}
+"""
+        try:
+            reply = ask_ai(full_prompt)
+        except Exception as e:
+            reply = f"❌ Lỗi hệ thống Gemini:\n{e}"
+
     st.session_state.messages.append({"role": "assistant", "content": reply})
-
     st.chat_message("assistant").write(reply)
