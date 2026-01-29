@@ -23,7 +23,7 @@ if not API_KEY:
 
 genai.configure(api_key=API_KEY)
 
-MODEL_NAME = "gemini-1.5-flash-latest"  # ✔️ MODEL ĐÚNG
+MODEL_NAME = "gemini-pro"  # ✔️ MODEL ĐÚNG
 
 # ================== LOG ==================
 LOG_FILE = "data/logs.csv"
