@@ -1,11 +1,9 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
 import os
-import csv
-from datetime import datetime
 import PyPDF2
 
-# ================== CONFIG ==================
+# ================= CONFIG =================
 st.set_page_config(
     page_title="THINKODE AI",
     page_icon="🧠",
@@ -15,25 +13,15 @@ st.set_page_config(
 st.title("🧠 THINKODE AI")
 st.caption("Think before Code – Huấn luyện tư duy lập trình cho học sinh")
 
-# ================== API KEY ==================
+# ================= API KEY =================
 API_KEY = os.getenv("GOOGLE_API_KEY")
 if not API_KEY:
     st.error("❌ Chưa cấu hình GOOGLE_API_KEY")
     st.stop()
 
-genai.configure(api_key=API_KEY)
+client = genai.Client(api_key=API_KEY)
 
-# ================== MODEL (ỔN ĐỊNH) ==================
-model = genai.GenerativeModel("models/gemini-pro")
-
-# ================== LOG ==================
-os.makedirs("data", exist_ok=True)
-LOG_FILE = "data/logs.csv"
-if not os.path.exists(LOG_FILE):
-    with open(LOG_FILE, "w", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow(["time", "mode", "question"])
-
-# ================== MODE ==================
+# ================= MODE =================
 mode = st.selectbox(
     "🧠 Chọn chế độ hỗ trợ:",
     [
@@ -44,7 +32,7 @@ mode = st.selectbox(
     ]
 )
 
-# ================== PDF UPLOAD ==================
+# ================= PDF =================
 st.markdown("📎 **Đính kèm đề bài (PDF, không bắt buộc)**")
 pdf_file = st.file_uploader(
     "",
@@ -56,9 +44,10 @@ pdf_text = ""
 if pdf_file:
     reader = PyPDF2.PdfReader(pdf_file)
     for page in reader.pages:
-        pdf_text += page.extract_text() + "\n"
+        if page.extract_text():
+            pdf_text += page.extract_text() + "\n"
 
-# ================== CHAT ==================
+# ================= CHAT =================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -69,23 +58,23 @@ user_input = st.chat_input("Nhập câu hỏi lập trình của em...")
 
 def ask_gemini(prompt: str) -> str:
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-1.0-pro",
+            contents=prompt
+        )
         return response.text
     except Exception as e:
-        return f"❌ Lỗi hệ thống Gemini:\n\n{e}"
+        return f"❌ Lỗi Gemini:\n{e}"
 
 if user_input:
     st.chat_message("user").write(user_input)
-
-    with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([datetime.now(), mode, user_input])
 
     full_prompt = f"""
 Bạn là THINKODE AI – trợ lý huấn luyện tư duy lập trình cho học sinh.
 
 CHẾ ĐỘ: {mode}
 
-ĐỀ BÀI (nếu có PDF):
+ĐỀ BÀI (PDF nếu có):
 {pdf_text if pdf_text else "(Không có PDF)"}
 
 CÂU HỎI:
@@ -93,11 +82,13 @@ CÂU HỎI:
 
 Yêu cầu:
 - Không giải ngay
-- Tập trung phân tích, tư duy
-- Trình bày rõ ràng, dễ hiểu cho học sinh
+- Phân tích tư duy
+- Trình bày dễ hiểu
 """
 
     reply = ask_gemini(full_prompt)
 
-    st.session_state.messages.append({"role": "assistant", "content": reply})
+    st.session_state.messages.append(
+        {"role": "assistant", "content": reply}
+    )
     st.chat_message("assistant").write(reply)
